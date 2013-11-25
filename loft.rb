@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # Name:         loft (Logical Organisation of Files by Type)
-# Version:      0.0.1
+# Version:      0.0.2
 # Release:      1
 # License:      Open Source
 # Group:        System
@@ -176,10 +176,10 @@ def process_files(test_mode,ignore_list,sort_dir,store_dir)
         if !File.exists?(new_file)
           puts "Moving "+old_file+" to "+new_file
           new_dir=store_dir+"/"+file_type
-          if !Dir.exists?(new_dir)
-            Dir.mkdir(new_dir)
-          end
           if test_mode != 1
+            if !Dir.exists?(new_dir)
+              Dir.mkdir(new_dir)
+            end
             system("mv \"#{old_file}\" \"#{new_file}\"")
           end
         else

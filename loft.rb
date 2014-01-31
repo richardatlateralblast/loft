@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # Name:         loft (Logical Organisation of Files by Type)
-# Version:      0.0.2
+# Version:      0.0.4
 # Release:      1
 # License:      Open Source
 # Group:        System
@@ -18,40 +18,41 @@ require 'fileutils'
 require 'pathname'
 require 'getopt/std'
 require 'yomu'
+require 'digest/md5'
 
 # Create array for files to ignore
 
-ignore_list=['.DS_Store','.localized']
+ignore_list = ['.DS_Store','.localized']
 
 # Set up some variables
 
-test_mode=0
-home_dir=Etc.getpwuid.dir
-store_dir=home_dir+"/Documents"
-sort_dir=Dir.pwd
+test_mode = 0
+home_dir  = Etc.getpwuid.dir
+store_dir = home_dir+"/Documents"
+sort_dir  = Dir.pwd
 
 # Get code name and version
 
 def get_code_name
-  code_name=$0
-  code_name=Pathname.new(code_name)
-  code_name=code_name.basename.to_s
+  code_name = $0
+  code_name = Pathname.new(code_name)
+  code_name = code_name.basename.to_s
   return code_name
 end
 
 def get_code_version
-  code_version=IO.readlines($0)
-  code_version=code_version.grep(/^# Version/)
-  code_version=code_version[0].to_s.split(":")
-  code_version=code_version[1].to_s.gsub(" ","")
+  code_version = IO.readlines($0)
+  code_version = code_version.grep(/^# Version/)
+  code_version = code_version[0].to_s.split(":")
+  code_version = code_version[1].to_s.gsub(" ","")
   return code_version
 end
 
 # Print usage insformation
 
 def print_usage(options)
-  code_name=get_code_name()
-  code_version=get_code_version()
+  code_name    = get_code_name()
+  code_version = get_code_version()
   puts
   puts code_name+" v. "+code_version
   puts
@@ -70,120 +71,162 @@ end
 # Clean up filename
 
 def get_file_base(file_base)
-  file_base=file_base.gsub(/[A-z]\./) { "#{$&}_"}
-  file_base=file_base.gsub(/\.[A-z]/) { "_#{$&}"}
-  file_base=file_base.gsub(/\._/,'_')
-  file_base=file_base.gsub(/_\./,'_')
-  file_base=file_base.gsub(/_$/,'')
-  file_base=file_base.gsub(/\.$/,'')
+  file_base = file_base.gsub(/[A-z]\./) { "#{$&}_"}
+  file_base = file_base.gsub(/\.[A-z]/) { "_#{$&}"}
+  file_base = file_base.gsub(/\._/,'_')
+  file_base = file_base.gsub(/_\./,'_')
+  file_base = file_base.gsub(/_$/,'')
+  file_base = file_base.gsub(/\.$/,'')
   return file_base
 end
 
 def get_new_name(new_name,file_type,file_name)
-  time=Time.new
-  year=time.year
-  yomu_types=[
+  time = Time.new
+  year = time.year
+  yomu_types = [
     'doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp', 'rtf','pdf',
     'epub','pages','numbers','keynote','mp3','jpeg','jpg', 'tiff','tif','cdf',
     'hdf','dwg'
   ]
   if yomu_types.grep(/#{file_type}/)
     if new_name.scan(/[[:alpha:]]/).join.length < 5 or new_name.match(/^[0-9]/)
-      file_data=File.read(file_name)
-      meta_data=Yomu.read :metadata, file_data
-      doc_title=meta_data["title"]
+      file_data = File.read(file_name)
+      meta_data = Yomu.read :metadata, file_data
+      doc_title = meta_data["title"]
       if doc_title
-        new_name=doc_title+"_"+new_name
+        doc_title = File.basename(doc_title,".#{file_type}")
+        if !file_name.match(/#{doc_title}/)
+          new_name  = doc_title+"_"+new_name
+        end
       end
     end
   end
-  new_name=new_name.gsub(/\s+/,'_')
-  new_name=new_name.gsub(/[\',\(,\),\[,\]]/,'')
-  new_name=new_name.gsub(/-_/,'_')
-  new_name=new_name.gsub(/__/,'_')
-  new_name=new_name.gsub(/_-_/,'_')
-  new_name=new_name.gsub(/_-/,'_')
-  new_name=new_name.gsub(/\+/,'and')
-  new_name=new_name.gsub(/\&/,'and')
-  new_name=new_name.gsub(/#{year}_#{year}/,"#{year}")
+  new_name = new_name.gsub(/\s+/,'_')
+  new_name = new_name.gsub(/[\',\(,\),\[,\]]/,'')
+  new_name = new_name.gsub(/-_/,'_')
+  new_name = new_name.gsub(/__/,'_')
+  new_name = new_name.gsub(/_-_/,'_')
+  new_name = new_name.gsub(/_-/,'_')
+  new_name = new_name.gsub(/\+/,'and')
+  new_name = new_name.gsub(/\&/,'and')
+  new_name = new_name.gsub(/#{year}_#{year}/,"#{year}")
   return(new_name)
+end
+
+# update MD5 list
+
+def update_md5s(dir_name,md5_list,ignore_list)
+  if !Dir.exists?(dir_name)
+    Dir.mkdir(dir_name)
+  end
+  dest_list = Dir.entries(dir_name)
+  dest_list.each do |file_name|
+    if File.file?(file_name)
+      if !ignore_list.include?(file_name)
+        full_name = dir_name+"/"+file_name
+        md5_hash = Digest::MD5.hexdigest(File.read(full_name))
+        if !md5_list[md5_hash]
+          md5_list[md5_hash] = full_name
+        end
+      end
+    end
+  end
+  return md5_list
 end
 
 # Process file list
 
-def process_files(test_mode,ignore_list,sort_dir,store_dir)
-  file_list=Dir.entries(sort_dir)
+def process_files(test_mode,ignore_list,sort_dir,store_dir,file_ext)
+  md5_list  = {}
+  file_list = Dir.entries(sort_dir)
+  file_copy = 1
   file_list.each do |file_name|
     if File.file?(file_name)
       if !ignore_list.include?(file_name)
-        file_type=""
-        file_dot=""
-        file_date=File.ctime(file_name).to_s.split(/ /)[0].gsub(/-/,'_')
-        full_file_type=`file "#{file_name}"`
-        file_type=full_file_type.split(/: /)[1].split(/ /)[0]
-        file_type=file_type.downcase
-        file_type=file_type.chomp
+        file_type = ""
+        file_dot  = ""
+        file_date = File.ctime(file_name).to_s.split(/ /)[0].gsub(/-/,'_')
+        full_file_type = `file "#{file_name}"`
+        file_type = full_file_type.split(/: /)[1].split(/ /)[0]
+        file_type = file_type.downcase
+        file_type = file_type.chomp
         if file_name.match(/\./)
           if full_file_type.match(/compressed data/)
             if file_name.match(/\.tar\.|\.qcow2\./)
-              file_dot=file_name.split(/\./).last(2).join(".")
+              file_dot = file_name.split(/\./).last(2).join(".")
             else
-              file_dot=file_name.split(/\./)[-1]
+              file_dot = file_name.split(/\./)[-1]
             end
           else
-            file_dot=file_name.split(/\./)[-1]
+            file_dot = file_name.split(/\./)[-1]
           end
-          file_base=File.basename(file_name,file_dot)
-          file_base=get_file_base(file_base)
-          new_name=file_base+"_"+file_date+"."+file_dot
+          file_base = File.basename(file_name,file_dot)
+          file_base = get_file_base(file_base)
+          new_name  = file_base+"_"+file_date+"."+file_dot
           case file_dot
           when /textClipping|ascii/
-            file_dot="txt"
+            file_dot = "txt"
           end
         else
-          new_name=file_name
+          new_name = file_name
         end
         if !file_type.match(/[a-z]/)
           if file_dot.match(/[a-z]/)
-            file_type=file_dot
+            file_type = file_dot
           end
         end
         if file_dot != file_type
           case file_type
           when /vax/
-            file_type="dmg"
+            file_type = "dmg"
           when /utf-8|ascii/
-            file_type="txt"
+            file_type = "txt"
           else
-            file_type=file_dot
+            file_type = file_dot
           end
         end
         if !file_type.match(/[a-z]/)
           if !file_dot.match(/[a-z]/)
-            file_dot=file_name.split(/\./)[-1]
+            file_dot = file_name.split(/\./)[-1]
           end
-          file_type=file_dot
+          file_type = file_dot
         end
         file_type.gsub(/gzip/,'gz')
         file_type.gsub(/jpeg/,'jpg')
         file_type.gsub(/tgz/,'gz')
         if file_type.match(/\-/)
-          file_type=file_type.split(/\-/)[0]
+          file_type = file_type.split(/\-/)[0]
         end
-        new_name=get_new_name(new_name,file_type,file_name)
-        old_file=sort_dir+"/"+file_name
-        new_file=store_dir+"/"+file_type+"/"+new_name
-        if !File.exists?(new_file)
-          puts "Moving "+old_file+" to "+new_file
-          new_dir=store_dir+"/"+file_type
-          if test_mode != 1
-            if !Dir.exists?(new_dir)
-              Dir.mkdir(new_dir)
+        new_name = get_new_name(new_name,file_type,file_name)
+        old_file = sort_dir+"/"+file_name
+        old_md5  = Digest::MD5.hexdigest(File.read(old_file))
+        new_dir  = store_dir+"/"+file_type
+        new_file = new_dir+"/"+new_name
+        md5_list = update_md5s(new_dir,md5_list,ignore_list)
+        if !md5_list[old_md5]
+          if !File.exists?(new_file)
+            if file_ext.match(/[A-z]/)
+              if file_type.match(/#{file_ext}/)
+                file_copy = 1
+              else
+                file_copy = 0
+              end
             end
-            system("mv \"#{old_file}\" \"#{new_file}\"")
+            if file_copy == 1
+              puts "Moving "+old_file+" to "+new_file
+              new_dir = store_dir+"/"+file_type
+              if test_mode != 1
+                if !Dir.exists?(new_dir)
+                  Dir.mkdir(new_dir)
+                end
+                system("mv \"#{old_file}\" \"#{new_file}\"")
+              end
+            else
+              puts "File "+new_file+" already exists"
+            end
           end
         else
-          puts "File "+new_file+" already exists"
+          puts "A copy of "+old_file+" already exists as "+md5_list[old_md5]
         end
       end
     end
@@ -192,16 +235,16 @@ end
 
 # Process commandline arguments
 
-options="chiotVd:s:"
+options = "chiotVd:e:s:"
 
 begin
-  opt=Getopt::Std.getopts(options)
+  opt = Getopt::Std.getopts(options)
 rescue
   print_usage(options)
 end
 
 if opt["t"]
-  test_mode=1
+  test_mode = 1
 end
 
 if opt["h"]
@@ -209,7 +252,7 @@ if opt["h"]
 end
 
 if opt["s"]
-  sort_dir=opt["s"]
+  sort_dir = opt["s"]
   if test_mode == 1
     puts "Source directory "+sort_dir
   end
@@ -219,8 +262,14 @@ if opt["s"]
   end
 end
 
+if opt["e"]
+  file_ext = opt["e"]
+else
+  file_ext =""
+end
+
 if opt["d"]
-  sort_dir=opt["d"]
+  sort_dir = opt["d"]
   if test_mode == 1
     puts "Destination directory "+sort_dir
   end
@@ -231,13 +280,15 @@ if opt["d"]
 end
 
 if opt["V"]
-  code_name=get_code_name()
-  code_version=get_code_version()
+  code_name = get_code_name()
+  code_version = get_code_version()
   puts code_name+" v. "+code_version
   exit
 end
 
 if opt["c"]
-  process_files(test_mode,ignore_list,sort_dir,store_dir)
+  process_files(test_mode,ignore_list,sort_dir,store_dir,file_ext)
   exit
+else
+  print_usage(options)
 end

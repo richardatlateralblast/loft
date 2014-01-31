@@ -1,5 +1,9 @@
 # Changes
 # 0.0.1 
 # Initial commit
-# 0.0.2 Tue 26 Nov 2013 07:56:27 EST
+# 0.0.2: Tue 26 Nov 2013 07:56:27 EST
 # Fixed directory creation  
+# 0.0.3: Fri 31 Jan 2014 10:00:04 EST
+# Added MD5 file hash check to make sure file doesn't already exist
+# 0.0.4: Fri 31 Jan 2014 11:00:24 EST
+# Improved processing of file metadata

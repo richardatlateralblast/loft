@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # Name:         loft (Logical Organisation of Files by Type)
-# Version:      0.0.4
+# Version:      0.0.5
 # Release:      1
 # License:      Open Source
 # Group:        System
@@ -64,6 +64,7 @@ def print_usage(options)
   puts "-s: Source directory"
   puts "-d: Destination directory"
   puts "-V: Print version"
+  puts "-v: Verbose mode"
   puts
   exit
 end
@@ -80,25 +81,31 @@ def get_file_base(file_base)
   return file_base
 end
 
-def get_new_name(new_name,file_type,file_name)
+def get_new_name(new_name,full_file_type,file_type,file_name,verbose_mode)
   time = Time.new
   year = time.year
-  yomu_types = [
-    'doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp', 'rtf','pdf',
-    'epub','pages','numbers','keynote','mp3','jpeg','jpg', 'tiff','tif','cdf',
-    'hdf','dwg'
-  ]
-  if yomu_types.grep(/#{file_type}/)
-    if new_name.scan(/[[:alpha:]]/).join.length < 5 or new_name.match(/^[0-9]/)
-      file_data = File.read(file_name)
-      meta_data = Yomu.read :metadata, file_data
-      doc_title = meta_data["title"]
-      if doc_title
-        doc_title = File.basename(doc_title,".#{file_type}")
-        if !file_name.match(/#{doc_title}/)
-          new_name  = doc_title+"_"+new_name
+  if !full_file_type.match(/Bootloader/)
+    yomu_types = [
+      'doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp', 'rtf','pdf','jfif',
+      'epub','pages','numbers','keynote','mp3','jpeg','jpg', 'tiff','tif','cdf',
+      'hdf','dwg'
+    ]
+    if yomu_types.grep(/#{file_type}/)
+      if new_name.scan(/[[:alpha:]]/).join.length < 5 or new_name.match(/^[0-9]/)
+        file_data = File.read(file_name)
+        meta_data = Yomu.read :metadata, file_data
+        doc_title = meta_data["title"]
+        if doc_title
+          doc_title = File.basename(doc_title,".#{file_type}")
+          if !file_name.match(/#{doc_title}/)
+            new_name  = doc_title+"_"+new_name
+          end
         end
       end
+    end
+  else
+    if verbose_mode == 1
+      puts "Information:\tNot using yomu to process file"
     end
   end
   new_name = new_name.gsub(/\s+/,'_')
@@ -136,13 +143,16 @@ end
 
 # Process file list
 
-def process_files(test_mode,ignore_list,sort_dir,store_dir,file_ext)
+def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext)
   md5_list  = {}
   file_list = Dir.entries(sort_dir)
   file_copy = 1
   file_list.each do |file_name|
     if File.file?(file_name)
       if !ignore_list.include?(file_name)
+        if verbose_mode == 1
+          puts "Processing:\t"+file_name
+        end
         file_type = ""
         file_dot  = ""
         file_date = File.ctime(file_name).to_s.split(/ /)[0].gsub(/-/,'_')
@@ -197,7 +207,7 @@ def process_files(test_mode,ignore_list,sort_dir,store_dir,file_ext)
         if file_type.match(/\-/)
           file_type = file_type.split(/\-/)[0]
         end
-        new_name = get_new_name(new_name,file_type,file_name)
+        new_name = get_new_name(new_name,full_file_type,file_type,file_name,verbose_mode)
         old_file = sort_dir+"/"+file_name
         old_md5  = Digest::MD5.hexdigest(File.read(old_file))
         new_dir  = store_dir+"/"+file_type
@@ -213,7 +223,7 @@ def process_files(test_mode,ignore_list,sort_dir,store_dir,file_ext)
               end
             end
             if file_copy == 1
-              puts "Moving "+old_file+" to "+new_file
+              puts "Moving:\t\t"+old_file+" to "+new_file
               new_dir = store_dir+"/"+file_type
               if test_mode != 1
                 if !Dir.exists?(new_dir)
@@ -222,11 +232,11 @@ def process_files(test_mode,ignore_list,sort_dir,store_dir,file_ext)
                 system("mv \"#{old_file}\" \"#{new_file}\"")
               end
             else
-              puts "File "+new_file+" already exists"
+              puts "Information:\tFile "+new_file+" already exists"
             end
           end
         else
-          puts "A copy of "+old_file+" already exists as "+md5_list[old_md5]
+          puts "Information:\tA copy of "+old_file+" already exists as "+md5_list[old_md5]
         end
       end
     end
@@ -235,7 +245,7 @@ end
 
 # Process commandline arguments
 
-options = "chiotVd:e:s:"
+options = "chiotvVd:e:s:"
 
 begin
   opt = Getopt::Std.getopts(options)
@@ -245,6 +255,10 @@ end
 
 if opt["t"]
   test_mode = 1
+end
+
+if opt["v"]
+  verbose_mode = 1
 end
 
 if opt["h"]
@@ -287,7 +301,7 @@ if opt["V"]
 end
 
 if opt["c"]
-  process_files(test_mode,ignore_list,sort_dir,store_dir,file_ext)
+  process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext)
   exit
 else
   print_usage(options)

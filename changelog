@@ -9,3 +9,5 @@
 # Improved processing of file metadata
 # 0.0.5: Sat Feb  1 17:51:42 EST 2014
 # Added verbose mode and handling for boot header files
+# 0.0.6: Sat  1 Feb 2014 23:35:16 EST
+# Fixed MD5 hash to handle larger files

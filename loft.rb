@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # Name:         loft (Logical Organisation of Files by Type)
-# Version:      0.0.5
+# Version:      0.0.6
 # Release:      1
 # License:      Open Source
 # Group:        System
@@ -18,11 +18,10 @@ require 'fileutils'
 require 'pathname'
 require 'getopt/std'
 require 'yomu'
-require 'digest/md5'
 
 # Create array for files to ignore
 
-ignore_list = ['.DS_Store','.localized']
+ignore_list = [".DS_Store",".localized"]
 
 # Set up some variables
 
@@ -131,7 +130,7 @@ def update_md5s(dir_name,md5_list,ignore_list)
     if File.file?(file_name)
       if !ignore_list.include?(file_name)
         full_name = dir_name+"/"+file_name
-        md5_hash = Digest::MD5.hexdigest(File.read(full_name))
+        md5_hash = %x[head -100 "#{full_name}" |md5]
         if !md5_list[md5_hash]
           md5_list[md5_hash] = full_name
         end
@@ -209,7 +208,7 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
         end
         new_name = get_new_name(new_name,full_file_type,file_type,file_name,verbose_mode)
         old_file = sort_dir+"/"+file_name
-        old_md5  = Digest::MD5.hexdigest(File.read(old_file))
+        old_md5  = %x[head -100 "#{old_file}" |md5]
         new_dir  = store_dir+"/"+file_type
         new_file = new_dir+"/"+new_name
         md5_list = update_md5s(new_dir,md5_list,ignore_list)
@@ -231,9 +230,9 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
                 end
                 system("mv \"#{old_file}\" \"#{new_file}\"")
               end
-            else
-              puts "Information:\tFile "+new_file+" already exists"
             end
+          else
+            puts "Information:\tFile "+new_file+" already exists"
           end
         else
           puts "Information:\tA copy of "+old_file+" already exists as "+md5_list[old_md5]
@@ -279,7 +278,7 @@ end
 if opt["e"]
   file_ext = opt["e"]
 else
-  file_ext =""
+  file_ext = ""
 end
 
 if opt["d"]

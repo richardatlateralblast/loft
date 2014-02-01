@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # Name:         loft (Logical Organisation of Files by Type)
-# Version:      0.0.7
+# Version:      0.0.8
 # Release:      1
 # License:      Open Source
 # Group:        System
@@ -91,7 +91,7 @@ def get_new_name(new_name,full_file_type,file_type,file_name,verbose_mode)
     pdf_test = %x[head -1 '#{file_name}' |strings |wc -l |awk '{print $1}']
     pdf_test = pdf_test.to_i
   end
-  if !full_file_type.match(/Bootloader/) and pdf_test == 1 and !file_type.match(/jpg/)
+  if !full_file_type.match(/Bootloader/) and pdf_test == 1 and !file_type.match(/jpg|gz|bz2/)
     yomu_types = [
       'doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp', 'rtf','pdf','jfif',
       'epub','pages','numbers','keynote','mp3','jpeg','jpg', 'tiff','tif','cdf',
@@ -169,6 +169,7 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
     if File.file?(file_name)
       if !ignore_list.include?(file_name)
         if verbose_mode == 1
+          puts
           puts "Processing:\t"+file_name
         end
         file_type = ""
@@ -216,7 +217,9 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
           end
           file_base = File.basename(file_name,file_dot)
           file_base = get_file_base(file_base)
-          new_name  = file_base+"_"+file_date+"."+file_dot
+          if !file_name.match(/\.tar\./)
+            new_name  = file_base+"_"+file_date+"."+file_dot
+          end
           case file_dot
           when /textClipping|ascii/
             file_dot = "txt"
@@ -230,13 +233,20 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
           end
         end
         if file_dot != file_type
-          case file_type
-          when /vax/
-            file_type = "dmg"
-          when /utf-8|ascii|text/
-            file_type = "txt"
+          if file_dot.match(/gz|bz/)
+            if file_name.match(/tar/)
+              file_type = "t"+file_dot
+              new_name  = file_name.gsub(/\.tar\.#{file_dot}/,"")
+            end
           else
-            file_type = file_dot
+            case file_type
+            when /vax/
+              file_type = "dmg"
+            when /utf-8|ascii|text/
+              file_type = "txt"
+            else
+              file_type = file_dot
+            end
           end
         end
         if !file_type.match(/[a-z]/)
@@ -247,7 +257,6 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
         end
         file_type.gsub(/gzip/,'gz')
         file_type.gsub(/jpeg/,'jpg')
-        file_type.gsub(/tgz/,'gz')
         if file_type.match(/\-/)
           file_type = file_type.split(/\-/)[0]
         end

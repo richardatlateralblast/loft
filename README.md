@@ -3,17 +3,21 @@ loft
 
 Logical Organisation of Files by Type
 
-Ruby script to organise files.
+A Ruby script to organise files.
 
-The script uses the yomu gem to get the title of the document if the file name doesn't include a title (e.g. the file name only has numbers). The file will be renamed and sorted into a subdirectory according to it's file type (e.g. pdf). It also renames the file with the creation date.
+The script uses the yomu gem to get the title of the document if the file name
+doesn't include a title (e.g. the file name only has numbers).
+The file will be renamed and sorted into a subdirectory according to it's file
+type (e.g. pdf). It also renames the file with the creation date.
 
-If no source directory is given it uses the current directory. If not destination directory is given it uses ~/Documents as a base.
+If no source directory is given it uses the current directory.
+If no destination directory is given it uses ~/Documents as a base.
 
 Usage
 =====
 
 ```
-loft.rb -[chiotVd:s:]
+loft.rb -[chiotvVd:s:]
 
 -h: Print help
 -t: Run in test mode (don't move/rename any files)
@@ -21,6 +25,7 @@ loft.rb -[chiotVd:s:]
 -s: Source directory
 -d: Destination directory
 -V: Print version
+-v: Verbose mode
 ```
 
 Examples

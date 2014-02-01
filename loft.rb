@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # Name:         loft (Logical Organisation of Files by Type)
-# Version:      0.0.6
+# Version:      0.0.7
 # Release:      1
 # License:      Open Source
 # Group:        System
@@ -18,6 +18,8 @@ require 'fileutils'
 require 'pathname'
 require 'getopt/std'
 require 'yomu'
+require 'mimetype_fu'
+require 'mahoro'
 
 # Create array for files to ignore
 
@@ -62,6 +64,7 @@ def print_usage(options)
   puts "-c: Sort files"
   puts "-s: Source directory"
   puts "-d: Destination directory"
+  puts "-f: Process an individual file"
   puts "-V: Print version"
   puts "-v: Verbose mode"
   puts
@@ -83,7 +86,12 @@ end
 def get_new_name(new_name,full_file_type,file_type,file_name,verbose_mode)
   time = Time.new
   year = time.year
-  if !full_file_type.match(/Bootloader/)
+  pdf_test = 1
+  if full_file_type.match(/pdf/)
+    pdf_test = %x[head -1 '#{file_name}' |strings |wc -l |awk '{print $1}']
+    pdf_test = pdf_test.to_i
+  end
+  if !full_file_type.match(/Bootloader/) and pdf_test == 1 and !file_type.match(/jpg/)
     yomu_types = [
       'doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp', 'rtf','pdf','jfif',
       'epub','pages','numbers','keynote','mp3','jpeg','jpg', 'tiff','tif','cdf',
@@ -113,6 +121,8 @@ def get_new_name(new_name,full_file_type,file_type,file_name,verbose_mode)
   new_name = new_name.gsub(/__/,'_')
   new_name = new_name.gsub(/_-_/,'_')
   new_name = new_name.gsub(/_-/,'_')
+  new_name = new_name.gsub(/^-/,'')
+  new_name = new_name.gsub(/^_/,'')
   new_name = new_name.gsub(/\+/,'and')
   new_name = new_name.gsub(/\&/,'and')
   new_name = new_name.gsub(/#{year}_#{year}/,"#{year}")
@@ -130,7 +140,7 @@ def update_md5s(dir_name,md5_list,ignore_list)
     if File.file?(file_name)
       if !ignore_list.include?(file_name)
         full_name = dir_name+"/"+file_name
-        md5_hash = %x[head -100 "#{full_name}" |md5]
+        md5_hash = %x[head -10 "#{full_name}" |md5]
         if !md5_list[md5_hash]
           md5_list[md5_hash] = full_name
         end
@@ -142,9 +152,18 @@ end
 
 # Process file list
 
-def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext)
+def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext,file_name)
   md5_list  = {}
-  file_list = Dir.entries(sort_dir)
+  file_list = []
+  if file_name.match(/[A-z|0-9]/)
+    if File.exist?(file_name)
+      file_list[0] = file_name
+    else
+      puts "Warning:\tFile '"+file_name+"' does not exist"
+    end
+  else
+    file_list = Dir.entries(sort_dir)
+  end
   file_copy = 1
   file_list.each do |file_name|
     if File.file?(file_name)
@@ -155,8 +174,34 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
         file_type = ""
         file_dot  = ""
         file_date = File.ctime(file_name).to_s.split(/ /)[0].gsub(/-/,'_')
-        full_file_type = `file "#{file_name}"`
-        file_type = full_file_type.split(/: /)[1].split(/ /)[0]
+        if verbose_mode == 1
+          puts "Information:\tFile creation date: "+file_date
+        end
+        full_file_name = sort_dir+"/"+file_name
+        full_file_type = File.mime_type?(file_name)
+        if full_file_type.match(/unknown/)
+          mahoro_obj = Mahoro.new(Mahoro::MIME)
+          begin
+            full_file_type = mahoro_obj.file(file_name)
+          rescue
+            full_file_type = %x[file '#{file_name}']
+            if full_file_type.match(/,/)
+              full_file_type = full_file_type.split(/,/)[0]
+            end
+            full_file_type = full_file_type.split(/: /)[1]
+          end
+          if full_file_type.match(/;/)
+            full_file_type = full_file_type.split(/;/)[0]
+          end
+        end
+        if verbose_mode == 1
+          puts "Filetype:\t"+full_file_type
+        end
+        if full_file_type.match(/\//)
+          file_type = full_file_type.split(/\//)[1]
+        else
+          file_type = full_file_type.split(/ /)[-1]
+        end
         file_type = file_type.downcase
         file_type = file_type.chomp
         if file_name.match(/\./)
@@ -177,7 +222,7 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
             file_dot = "txt"
           end
         else
-          new_name = file_name
+          new_name = file_name+"_"+file_date
         end
         if !file_type.match(/[a-z]/)
           if file_dot.match(/[a-z]/)
@@ -188,7 +233,7 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
           case file_type
           when /vax/
             file_type = "dmg"
-          when /utf-8|ascii/
+          when /utf-8|ascii|text/
             file_type = "txt"
           else
             file_type = file_dot
@@ -207,8 +252,11 @@ def process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext
           file_type = file_type.split(/\-/)[0]
         end
         new_name = get_new_name(new_name,full_file_type,file_type,file_name,verbose_mode)
+        if !new_name.match(/\.#{file_type}$/)
+          new_name = new_name+"."+file_type
+        end
         old_file = sort_dir+"/"+file_name
-        old_md5  = %x[head -100 "#{old_file}" |md5]
+        old_md5  = %x[head -10 "#{old_file}" |md5]
         new_dir  = store_dir+"/"+file_type
         new_file = new_dir+"/"+new_name
         md5_list = update_md5s(new_dir,md5_list,ignore_list)
@@ -244,7 +292,7 @@ end
 
 # Process commandline arguments
 
-options = "chiotvVd:e:s:"
+options = "chiotvVd:e:f:s:"
 
 begin
   opt = Getopt::Std.getopts(options)
@@ -262,6 +310,12 @@ end
 
 if opt["h"]
   print_usage(options)
+end
+
+if opt["f"]
+  file_name = opt["f"]
+else
+  file_name = ""
 end
 
 if opt["s"]
@@ -300,7 +354,7 @@ if opt["V"]
 end
 
 if opt["c"]
-  process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext)
+  process_files(verbose_mode,test_mode,ignore_list,sort_dir,store_dir,file_ext,file_name)
   exit
 else
   print_usage(options)

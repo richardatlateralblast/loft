@@ -11,3 +11,5 @@
 # Added verbose mode and handling for boot header files
 # 0.0.6: Sat  1 Feb 2014 23:35:16 EST
 # Fixed MD5 hash to handle larger files
+# 0.0.7: Sun Feb  2 06:46:14 EST 2014
+# Improved file type detection
